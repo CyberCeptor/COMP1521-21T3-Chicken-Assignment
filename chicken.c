@@ -21,7 +21,9 @@
 
 
 // ADD YOUR FUNCTION PROTOTYPES HERE
-
+uint64_t calculate_content_length(FILE *fp);
+void print_filename(FILE *fp, uint16_t pathname_length);
+void print_permissions(FILE *fp);
 
 // print the files & directories stored in egg_pathname (subset 0)
 //
@@ -37,38 +39,69 @@ void list_egg(char *egg_pathname, int long_listing) {
     }
 
     int c = 0;
-
-    
-
-
     int next_pathname_length = 0;
-    fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_SET);
-
-
-while ((c = fgetc(fp)) != EOF) {
-    fseek(fp, -1, SEEK_CUR);
-
-
     uint16_t pathname_length = 0;
-    c = fgetc(fp);
-    pathname_length = c;
-    c = fgetc(fp);
-    pathname_length |= (c << 8);
-    
-
-
-    fseek(fp, pathname_length, SEEK_CUR);
     uint64_t content_length = 0;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 0;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 8;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 16;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 24;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 32;
-    content_length |= (uint64_t)(c = fgetc(fp)) << 40;
 
-    fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR);
-    
+
+    if (long_listing == 0) {
+        fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_SET);
+        while ((c = fgetc(fp)) != EOF) { //check c != EOF.
+            fseek(fp, -1, SEEK_CUR); //reset the fp after checking EOF. move back 1 byte
+            pathname_length = (fgetc(fp) | (fgetc(fp) << 8)); //little endian 2 byte int.
+            fseek(fp, pathname_length, SEEK_CUR); //move *fp past the length of the pathname.
+            content_length = calculate_content_length(fp);      // unsigned 48 bit int to a 64bit int. (little-endian).
+            fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR); //moving fp back to the pathname. Minus the content_length + the pathname_length.
+            print_filename(fp, pathname_length);        //print out the filename.
+            next_pathname_length = 6 + content_length + 12; //the number of bytes to the next egglet's pathname_length.
+            fseek(fp, next_pathname_length, SEEK_CUR); //moves the fp to the next egglet pathname_length.
+        }
+    }
+
+    if (long_listing) {
+        //fp is at the start of the file.
+        fseek(fp, 2, SEEK_CUR);
+
+
+        while ((c = fgetc(fp)) != EOF) {
+
+        fseek(fp, -1, SEEK_CUR);
+        print_permissions(fp);
+
+        fseek(fp, -11, SEEK_CUR);
+        uint8_t format = fgetc(fp);
+        printf("%3c", format);
+
+        //print the content_length, i.e. number of bytes of the content.
+        //Need to calculate the pathname-length first.
+        fseek(fp, 10, SEEK_CUR);
+        pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
+        fseek(fp, pathname_length, SEEK_CUR);
+        content_length = calculate_content_length(fp);
+        printf("%7lu  ", content_length);
+        fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR);
+        print_filename(fp, pathname_length); 
+
+        next_pathname_length = 6 + content_length + 2;
+        fseek(fp, next_pathname_length, SEEK_CUR);
+    }
+    }
+    fclose(fp);
+}
+
+
+void print_permissions(FILE *fp) {
+    char temp[10] = "0";
+    for (int i = 0; i < 10; i++) {
+        temp[i] = fgetc(fp);
+        printf("%c", temp[i]);
+    }
+}
+
+
+void print_filename(FILE *fp, uint16_t pathname_length) {
     int i = 0;
+    int c = 0;
     while ((c = fgetc(fp)) && i < pathname_length) {
         fputc(c, stdout);
         if (c == '\n') {
@@ -77,18 +110,21 @@ while ((c = fgetc(fp)) != EOF) {
         i++;
     } 
     printf("\n");
-    next_pathname_length = 6 + content_length + 12;
-    fseek(fp, next_pathname_length, SEEK_CUR);
+    return;
 }
 
+uint64_t calculate_content_length(FILE *fp) {
+    uint64_t content_length = 0;
+    content_length |= (uint64_t)(fgetc(fp)) << 0;
+    content_length |= (uint64_t)(fgetc(fp)) << 8;
+    content_length |= (uint64_t)(fgetc(fp)) << 16;
+    content_length |= (uint64_t)(fgetc(fp)) << 24;
+    content_length |= (uint64_t)(fgetc(fp)) << 32;
+    content_length |= (uint64_t)(fgetc(fp)) << 40;
 
-   // printf("list_egg called to list egg: '%s'\n", egg_pathname);
-
-    if (long_listing) {
-        printf("long listing with permissions & sizes specified\n");
-    }
-    fclose(fp);
+    return content_length;
 }
+
 
 
 
