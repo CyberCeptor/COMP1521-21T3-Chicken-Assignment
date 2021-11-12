@@ -139,13 +139,22 @@ void check_egg(char *egg_pathname) {
     // REPLACE THIS PRINTF WITH YOUR CODE
     FILE *fp = fopen(egg_pathname, "r");
     if (fp == NULL) {
-        perror(egg_pathname);
+        fprintf(stderr, "%s", egg_pathname);
         exit(1);
     }
 
 while ((c = fgetc(fp)) != EOF) {
-    fseek(fp, -1, SEEK_CUR);
 
+
+
+
+    //check the magic number(first byte)  of each egglet.
+    if (c != 0x63) {
+        fprintf(stderr, "error: incorrect first egglet byte: 0x%x should be 0x63\n", c);
+        exit(1);
+    }
+
+    fseek(fp, -1, SEEK_CUR);
 
     fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_CUR);
     uint16_t pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
@@ -159,7 +168,7 @@ while ((c = fgetc(fp)) != EOF) {
     
     int egglet_size = 14 + pathname_length + 6 + content_length; //doesnt count the hash byte.
 
-    uint8_t calculated_hash_value = 0; //reset the hash value for each iteration.
+    uint8_t calculated_hash_value = 0; //reset the hash value for each egglet.
     int i = 0;
     while ((c = fgetc(fp)) != EOF && i < egglet_size) {
         calculated_hash_value = egglet_hash(calculated_hash_value, c);
