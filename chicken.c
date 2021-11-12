@@ -2,7 +2,7 @@
 // COMP1521 21T3 --- Assignment 2: `chicken', a simple file archiver
 // <https://www.cse.unsw.edu.au/~cs1521/21T3/assignments/ass2/index.html>
 //
-// Written by YOUR-NAME-HERE (z5555555) on INSERT-DATE-HERE.
+// Written by Jenson Craig Morgan (z5360181) on 12/11/2021
 //
 // 2021-11-08   v1.1    Team COMP1521 <cs1521 at cse.unsw.edu.au>
 
@@ -36,32 +36,38 @@ void list_egg(char *egg_pathname, int long_listing) {
         exit(1);
     }
 
-
-   fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_SET);
-
-
-
+    int c = 0;
 
     
+
+
+    int next_pathname_length = 0;
+    fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_SET);
+
+
+while ((c = fgetc(fp)) != EOF) {
+    fseek(fp, -1, SEEK_CUR);
+
+
     uint16_t pathname_length = 0;
-    pathname_length = fgetc(fp) | (fgetc(fp) << 8);
-    printf("pathname length = %d\n", pathname_length);
+    c = fgetc(fp);
+    pathname_length = c;
+    c = fgetc(fp);
+    pathname_length |= (c << 8);
+    
 
 
     fseek(fp, pathname_length, SEEK_CUR);
     uint64_t content_length = 0;
-    content_length |= (uint64_t)(fgetc(fp)) << 0;
-    content_length |= (uint64_t)(fgetc(fp)) << 8;
-    content_length |= (uint64_t)(fgetc(fp)) << 16;
-    content_length |= (uint64_t)(fgetc(fp)) << 24;
-    content_length |= (uint64_t)(fgetc(fp)) << 32;
-    content_length |= (uint64_t)(fgetc(fp)) << 40;
-
-    printf("content length = %lu\n", content_length);
-
+    content_length |= (uint64_t)(c = fgetc(fp)) << 0;
+    content_length |= (uint64_t)(c = fgetc(fp)) << 8;
+    content_length |= (uint64_t)(c = fgetc(fp)) << 16;
+    content_length |= (uint64_t)(c = fgetc(fp)) << 24;
+    content_length |= (uint64_t)(c = fgetc(fp)) << 32;
+    content_length |= (uint64_t)(c = fgetc(fp)) << 40;
 
     fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR);
-    int c;
+    
     int i = 0;
     while ((c = fgetc(fp)) && i < pathname_length) {
         fputc(c, stdout);
@@ -69,29 +75,22 @@ void list_egg(char *egg_pathname, int long_listing) {
             break;
         }
         i++;
-    }
-
+    } 
     printf("\n");
-
-    int next_pathname_length = 6 + content_length + 12;
-
+    next_pathname_length = 6 + content_length + 12;
     fseek(fp, next_pathname_length, SEEK_CUR);
-    pathname_length = fgetc(fp) | (fgetc(fp) << 8);
-    i = 0;
-    while ((c = fgetc(fp)) && i < pathname_length) {
-        fputc(c, stdout);
-        if (c == '\n') {
-            break;
-        }
-        i++;
-    }
-    printf("\n");
+}
+
+
    // printf("list_egg called to list egg: '%s'\n", egg_pathname);
 
     if (long_listing) {
         printf("long listing with permissions & sizes specified\n");
     }
+    fclose(fp);
 }
+
+
 
 
 // check the files & directories stored in egg_pathname (subset 1)
