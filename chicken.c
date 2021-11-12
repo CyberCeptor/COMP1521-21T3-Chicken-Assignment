@@ -31,7 +31,6 @@ void print_permissions(FILE *fp);
 
 void list_egg(char *egg_pathname, int long_listing) {
 
-    // REPLACE THIS CODE WITH YOUR CODE
     FILE *fp = fopen(egg_pathname, "r");
     if (fp == NULL) {
         perror(egg_pathname);
@@ -42,7 +41,7 @@ void list_egg(char *egg_pathname, int long_listing) {
     int next_pathname_length = 0;
     uint16_t pathname_length = 0;
     uint64_t content_length = 0;
-
+    uint8_t format = 0;
 
     if (long_listing == 0) {
         fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_SET);
@@ -53,38 +52,37 @@ void list_egg(char *egg_pathname, int long_listing) {
             content_length = calculate_content_length(fp);      // unsigned 48 bit int to a 64bit int. (little-endian).
             fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR); //moving fp back to the pathname. Minus the content_length + the pathname_length.
             print_filename(fp, pathname_length);        //print out the filename.
+            printf("\n");
             next_pathname_length = 6 + content_length + 12; //the number of bytes to the next egglet's pathname_length.
             fseek(fp, next_pathname_length, SEEK_CUR); //moves the fp to the next egglet pathname_length.
         }
-    }
-
-    if (long_listing) {
+    } else if (long_listing) {
         //fp is at the start of the file.
-        fseek(fp, 2, SEEK_CUR);
+        fseek(fp, 2, SEEK_CUR); //set fp to the permissions.
+        while ((c = fgetc(fp)) != EOF) { //check not EOF
+            fseek(fp, -1, SEEK_CUR); // move back 1 byte that was checked.
+            print_permissions(fp);
 
+            fseek(fp, -(EGG_LENGTH_FORMAT + EGG_LENGTH_MODE), SEEK_CUR); //move to the format.
+            format = fgetc(fp);
+            printf("%3c", format);
 
-        while ((c = fgetc(fp)) != EOF) {
+            //print the content_length, i.e. number of bytes of the content.
+            //Need to calculate the pathname-length first.
+            fseek(fp, EGG_LENGTH_MODE, SEEK_CUR); //move to pathname_length.
+            pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
 
-        fseek(fp, -1, SEEK_CUR);
-        print_permissions(fp);
+            fseek(fp, pathname_length, SEEK_CUR); //move to content_length.
+            content_length = calculate_content_length(fp);
+            printf("%7lu  ", content_length);
 
-        fseek(fp, -11, SEEK_CUR);
-        uint8_t format = fgetc(fp);
-        printf("%3c", format);
+            fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR); //move to filename.
+            print_filename(fp, pathname_length); 
+            printf("\n");
 
-        //print the content_length, i.e. number of bytes of the content.
-        //Need to calculate the pathname-length first.
-        fseek(fp, 10, SEEK_CUR);
-        pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
-        fseek(fp, pathname_length, SEEK_CUR);
-        content_length = calculate_content_length(fp);
-        printf("%7lu  ", content_length);
-        fseek(fp, -(EGG_LENGTH_CONTLEN + (pathname_length)), SEEK_CUR);
-        print_filename(fp, pathname_length); 
-
-        next_pathname_length = 6 + content_length + 2;
-        fseek(fp, next_pathname_length, SEEK_CUR);
-    }
+            next_pathname_length = EGG_LENGTH_CONTLEN + content_length + EGG_LENGTH_MAGIC + EGG_OFFSET_FORMAT; //move to the start of the next egglet.
+            fseek(fp, next_pathname_length, SEEK_CUR);
+        }
     }
     fclose(fp);
 }
@@ -98,7 +96,6 @@ void print_permissions(FILE *fp) {
     }
 }
 
-
 void print_filename(FILE *fp, uint16_t pathname_length) {
     int i = 0;
     int c = 0;
@@ -109,7 +106,6 @@ void print_filename(FILE *fp, uint16_t pathname_length) {
         }
         i++;
     } 
-    printf("\n");
     return;
 }
 
@@ -137,11 +133,52 @@ uint64_t calculate_content_length(FILE *fp) {
 
 void check_egg(char *egg_pathname) {
 
+
+    int c;
+
     // REPLACE THIS PRINTF WITH YOUR CODE
+    FILE *fp = fopen(egg_pathname, "r");
+    if (fp == NULL) {
+        perror(egg_pathname);
+        exit(1);
+    }
 
-    printf("check_egg called to check egg: '%s'\n", egg_pathname);
+while ((c = fgetc(fp)) != EOF) {
+    fseek(fp, -1, SEEK_CUR);
+
+
+    fseek(fp, EGG_OFFSET_PATHNLEN, SEEK_CUR);
+    uint16_t pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
+    fseek(fp, pathname_length, SEEK_CUR);
+    uint64_t content_length = calculate_content_length(fp);
+
+    fseek(fp, content_length, SEEK_CUR);
+    uint8_t given_hash_value = fgetc(fp);
+    
+    fseek(fp, -(6 + pathname_length + 14 + content_length + 1), SEEK_CUR); //set to the start of the egglet.
+    
+    int egglet_size = 14 + pathname_length + 6 + content_length; //doesnt count the hash byte.
+
+    uint8_t calculated_hash_value = 0; //reset the hash value for each iteration.
+    int i = 0;
+    while ((c = fgetc(fp)) != EOF && i < egglet_size) {
+        calculated_hash_value = egglet_hash(calculated_hash_value, c);
+        i++;
+    }
+
+    fseek(fp, -(content_length + 6 + pathname_length + 1), SEEK_CUR); //set fp to the filename.
+    print_filename(fp, pathname_length);
+
+    if (given_hash_value == calculated_hash_value) {
+        printf(" - correct hash\n");
+    } else {
+        printf(" - incorrect hash 0x%x should be 0x%x\n", calculated_hash_value, given_hash_value);
+    }
+
+    fseek(fp, 6 + content_length, SEEK_CUR);
+
 }
-
+}
 
 // extract the files/directories stored in egg_pathname (subset 2 & 3)
 
