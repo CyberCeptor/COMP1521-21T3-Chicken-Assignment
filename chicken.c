@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include "chicken.h"
 
@@ -133,24 +134,16 @@ uint64_t calculate_content_length(FILE *fp) {
 
 void check_egg(char *egg_pathname) {
 
-
-    int c;
-
-    // REPLACE THIS PRINTF WITH YOUR CODE
     FILE *fp = fopen(egg_pathname, "r");
     if (fp == NULL) {
         fprintf(stderr, "%s", egg_pathname);
         exit(1);
     }
-
+    int c;
 while ((c = fgetc(fp)) != EOF) {
-
-
-
-
     //check the magic number(first byte)  of each egglet.
-    if (c != 0x63) {
-        fprintf(stderr, "error: incorrect first egglet byte: 0x%x should be 0x63\n", c);
+    if (c != EGGLET_MAGIC) { //0x63
+        fprintf(stderr, "error: incorrect first egglet byte: 0x%x should be 0x%x\n", c, EGGLET_MAGIC);
         exit(1);
     }
 
@@ -193,9 +186,60 @@ while ((c = fgetc(fp)) != EOF) {
 
 void extract_egg(char *egg_pathname) {
 
-    // REPLACE THIS PRINTF WITH YOUR CODE
+    // opens the egg file, reads through the content and writes it to a new file. 
+    FILE *fp = fopen(egg_pathname, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "error: file does not exist.\n");
+        exit(1);
+    }
 
-    printf("extract_egg called to extract egg: '%s'\n", egg_pathname);
+    int c;
+    while ((c = fgetc(fp)) != EOF) {
+        fseek(fp, -1, SEEK_CUR);
+
+        //get the length of the file name.
+        fseek(fp, 12, SEEK_CUR);
+
+        uint16_t pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
+        
+        //get the filename(pathname) to be created.
+        char filename[100] = "";
+        int i = 0;
+        
+        while (i < pathname_length) {
+            fread(&filename[i], 1, 1, fp);
+            i++;
+        }   
+        
+        printf("Extracting: %s\n", filename);
+
+        FILE *new_file = fopen(filename, "wb");
+        if (new_file == NULL) {
+            fprintf(stderr, "error: file was not created.\n");
+            exit(1);
+        }
+
+        //need to add the permissions, magic number, hash, format, paths for the egglet.
+
+
+        // at the content length pointer.
+        uint64_t content_length = calculate_content_length(fp);
+
+        i = 0;
+        while ((c = fgetc(fp)) != EOF && i < (content_length)) {
+            fputc(c, new_file);
+            i++;
+        }
+
+        fclose(new_file);
+
+
+    }
+
+
+    fclose(fp);
+
+
 }
 
 
