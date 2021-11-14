@@ -185,7 +185,7 @@ while ((c = fgetc(fp)) != EOF) {
 // extract the files/directories stored in egg_pathname (subset 2 & 3)
 
 void extract_egg(char *egg_pathname) {
-
+    int i = 0;
     // opens the egg file, reads through the content and writes it to a new file. 
     FILE *fp = fopen(egg_pathname, "rb");
     if (fp == NULL) {
@@ -197,30 +197,85 @@ void extract_egg(char *egg_pathname) {
     while ((c = fgetc(fp)) != EOF) {
         fseek(fp, -1, SEEK_CUR);
 
-        //get the length of the file name.
-        fseek(fp, 12, SEEK_CUR);
 
+        fseek(fp, 2, SEEK_CUR);
+
+
+        int permissions[100];
+        char linux_perm[3];
+        linux_perm[0] = 0;
+        linux_perm[1] = 0;
+        linux_perm[2] = 0;
+
+
+
+        c = fgetc(fp); //remove the file permissions at the start
+        i = 1;
+        int j = 0;
+        while (i < 10) {
+            permissions[i] = fgetc(fp);
+
+            if (permissions[i] == 'r') {
+                linux_perm[j] += 4;
+            } else if (permissions[i] == 'w') {
+                linux_perm[j] += 2;
+            } else if (permissions[i] == 'x') {
+                linux_perm[j] += 1;
+            }
+
+            if (i % 3 == 0) {
+                j++;
+            }
+            i++;
+        }
+
+
+
+        //fp is now at the pathname length.
         uint16_t pathname_length = (fgetc(fp) | (fgetc(fp) << 8));
         
         //get the filename(pathname) to be created.
         char filename[100] = "";
-        int i = 0;
-        
+        i = 0;
+
+        //fp is at pathname.
         while (i < pathname_length) {
             fread(&filename[i], 1, 1, fp);
             i++;
         }   
+
+
         
         printf("Extracting: %s\n", filename);
 
-        FILE *new_file = fopen(filename, "wb");
+        FILE *new_file = fopen(filename, "w");
         if (new_file == NULL) {
             fprintf(stderr, "error: file was not created.\n");
             exit(1);
         }
 
-        //need to add the permissions, magic number, hash, format, paths for the egglet.
+        long result = 0;
+        for (int tmp = 0; tmp < 3; tmp++) {
+            result *= 8;
+            result += linux_perm[tmp];
+        }
 
+        mode_t mode = result;
+
+        if (chmod(filename, mode) != 0) {
+            perror(filename);
+            exit(1);
+        }
+
+        //for (int a = 1; a < 3; a++) {
+           // if (chmod(filename, mode | perm) != 0) {
+         //       perror(filename);
+           //     exit(1);
+          //  }
+        //}
+        
+        //need to add the permissions, magic number, hash, format, paths for the egglet.
+        //use chmod to change the permissions, may meed strol() for octal conversion.
 
         // at the content length pointer.
         uint64_t content_length = calculate_content_length(fp);
@@ -232,8 +287,6 @@ void extract_egg(char *egg_pathname) {
         }
 
         fclose(new_file);
-
-
     }
 
 
