@@ -216,11 +216,18 @@ void create_egg(char *egg_pathname, int append, int format,
     int byte_count = 0;
     int c;
     uint8_t hash_result = 0;
-    FILE *fp = fopen(egg_pathname, "w+");
+
+    char *write_or_append = "w+";
+    if (append != 0) {
+        write_or_append = "a+";
+    }
+
+    FILE *fp = fopen(egg_pathname, write_or_append);
     if (fp == NULL) {
         fprintf(stderr, "%s", egg_pathname);
     }
 
+    
     for (int counter = 0; counter < n_pathnames; counter++) {
         struct stat file_stat;
         if (stat(pathnames[counter], &file_stat) != 0) {
