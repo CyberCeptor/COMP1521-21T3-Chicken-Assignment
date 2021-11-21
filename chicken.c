@@ -38,8 +38,6 @@ uint64_t get_content_length(FILE *open_file);
 // print the files & directories stored in egg_pathname (subset 0)
 //
 // if long_listing is non-zero then file/directory permissions, formats & sizes are also printed (subset 0)
-
-
 void list_egg(char *egg_pathname, int long_listing) {
     int c = 0;
     uint8_t format = 0;
@@ -166,11 +164,6 @@ void extract_egg(char *egg_pathname) {
         }
         printf("Extracting: %s\n", pathname);
         FILE *new_file = fopen(pathname, "w"); //creates a new blank text file.
-        if (new_file == NULL) {
-            fprintf(stderr, "error: file was not created.\n");
-            exit(1);
-        }
-
         long result = base_eight(linux_perm);
         mode_t mode = result; //creates a 'mode' for the result, required for the chmod function.
         if (chmod(pathname, mode) != 0) { //returns zero when successful.
