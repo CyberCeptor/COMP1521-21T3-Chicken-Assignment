@@ -236,7 +236,8 @@ void create_egg(char *egg_pathname, int append, int format,
         write_content_length(fp, content_length);
         fseek(open_file, 0, SEEK_SET); //reset open_file back to the start so the contents can be copied over to fp.
         write_content(fp, open_file);
-        byte_count = EGG_LENGTH_MAGIC + EGG_LENGTH_FORMAT + EGG_LENGTH_MODE + pathname_length + EGG_LENGTH_CONTLEN + content_length;
+        byte_count = EGG_LENGTH_MAGIC + EGG_LENGTH_FORMAT + EGG_LENGTH_MODE + EGG_LENGTH_PATHNLEN +
+            pathname_length + EGG_LENGTH_CONTLEN + content_length; //doesnt include the hash value.
         fseek(fp, -(byte_count), SEEK_CUR); //set the fp back to the start to calculate the hash value.
         fputc(hash_value_calculator(fp, byte_count), fp); //stores the calculation from the hash_calculator in the egglet.
         fclose(open_file);
